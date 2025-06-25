@@ -155,7 +155,7 @@ div.problem-progress {
 // +Problem - Base
 // ====================
 div.problem {
-  padding-top: $baseline;
+  padding-top: 0;
 
   @media print {
     display: block;

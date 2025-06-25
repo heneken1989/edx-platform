@@ -243,3 +243,8 @@ button.close-modal {
     text-shadow: none;
   }
 }
+
+// Override problem block padding
+.xmodule_display.xmodule_ProblemBlock div.problem {
+    padding-top: 0 !important;
+}
