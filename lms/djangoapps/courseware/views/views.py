@@ -2335,3 +2335,182 @@ def courseware_mfe_navigation_sidebar_toggles(request, course_id=None):
         "enable_navigation_sidebar": COURSEWARE_MICROFRONTEND_ENABLE_NAVIGATION_SIDEBAR.is_enabled(course_key),
         "always_open_auxiliary_sidebar": COURSEWARE_MICROFRONTEND_ALWAYS_OPEN_AUXILIARY_SIDEBAR.is_enabled(course_key),
     })
+
+@api_view(['GET'])
+def get_all_units(request):
+    try:
+        store = modulestore()
+        courses = store.get_courses()
+        
+        units = []
+        for course in courses:
+            for chapter in course.get_children():
+                for sequential in chapter.get_children():
+                    for vertical in sequential.get_children():
+                        unit_info = {
+                            "id": str(vertical.location),
+                            "display_name": vertical.display_name,
+                            "children": [str(child) for child in vertical.children],  # Add children
+                        }
+                        units.append(unit_info)
+        
+        return Response(units)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+    
+
+@api_view(['GET'])
+def get_all_courses(request):
+    """
+    Returns a list of all courses (id and display_name).
+    """
+    courses = CourseOverview.objects.all()
+    data = [
+        {
+            "id": str(course.id),
+            "display_name": course.display_name,
+        }
+        for course in courses
+    ]
+    return Response(data)
+
+
+@api_view(['GET'])
+def get_unit_by_id(request, unit_id):
+    try:
+        # Convert the unit_id string to a UsageKey
+        usage_key = UsageKey.from_string(unit_id)
+        
+        # Fetch the unit from the split modulestore
+        store = modulestore('split')
+        unit = store.get_item(usage_key)
+        
+        if not unit:
+            return Response({"error": "Unit not found"}, status=404)
+            
+        # Prepare unit info
+        unit_info = {
+            "id": str(unit.location),
+        }
+        # Combine unit info with problem details
+        unit_info['time_limit'] = store.get_item(unit.children[0]).time_limit
+        return Response(unit_info)
+    except ItemNotFoundError:
+        return Response({"error": "Unit not found"}, status=404)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+    
+
+@api_view(['GET'])
+def get_sequences_by_course(request, course_id):
+    """
+    Returns a list of sequences (sections) for a given course_id.
+    """
+    try:
+        course_key = CourseKey.from_string(course_id)
+        course = modulestore().get_course(course_key)
+        sequences = []
+        for chapter in course.get_children():
+            for sequential in chapter.get_children():
+                sequences.append({
+                    "id": str(sequential.location),
+                    "display_name": sequential.display_name,
+                })
+        return Response(sequences)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+    
+
+    
+
+    
+@api_view(['GET'])
+def get_sections_by_course(request, course_id):
+    """
+    Returns a list of sections (chapters) for a given course_id.
+    """
+    try:
+        course_key = CourseKey.from_string(course_id)
+        course = modulestore().get_course(course_key)
+        sections = []
+        for chapter in course.get_children():
+            sections.append({
+                "id": str(chapter.location),
+                "display_name": chapter.display_name,
+            })
+        return Response(sections)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+@api_view(['GET'])
+def get_sequences_by_section(request, section_id):
+    try:
+        section_key = UsageKey.from_string(section_id)
+        section = modulestore().get_item(section_key)
+        if not section:
+            return Response({"error": "Section not found"}, status=404)
+        sequences = []
+        for sequential in section.get_children():
+            # sequential might be a UsageKey or a block object
+            if hasattr(sequential, 'location'):
+                # It's a block object, get its UsageKey
+                sequential_key = sequential.location
+            else:
+                # It's already a UsageKey
+                sequential_key = sequential
+            try:
+                seq_obj = modulestore().get_item(sequential_key)
+                display_name = getattr(seq_obj, 'display_name', None)
+            except Exception as e:
+                display_name = f"ERROR: {e}"
+            sequences.append({
+                "id": str(sequential_key),
+                "display_name": display_name,
+            })
+        return Response(sequences)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+@api_view(['GET'])
+def get_first_problem_by_unit(request, unit_id):
+    """
+    Returns the first problem block from a unit (vertical block).
+    """
+    try:
+        # Convert the unit_id string to a UsageKey
+        usage_key = UsageKey.from_string(unit_id)
+        
+        # Fetch the unit from the modulestore
+        store = modulestore()
+        unit = store.get_item(usage_key)
+        
+        if not unit:
+            return Response({"error": "Unit not found"}, status=404)
+            
+        # Get all children of the unit
+        children = unit.get_children()
+        
+        # Find the first problem block
+        for child in children:
+            if child.category == 'problem':
+                problem_info = {
+                    "id": str(child.location),
+                    "display_name": child.display_name,
+                    "data": child.data,
+                    "metadata": {
+                        "max_attempts": getattr(child, 'max_attempts', None),
+                        "weight": getattr(child, 'weight', None),
+                        "showanswer": getattr(child, 'showanswer', None),
+                        "rerandomize": getattr(child, 'rerandomize', None),
+                        "attempts_before_showanswer_button": getattr(child, 'attempts_before_showanswer_button', None),
+                        "time_limit": getattr(child, 'time_limit', None),
+                    }
+                }
+                return Response(problem_info)
+                
+        return Response({"error": "No problem found in this unit"}, status=404)
+        
+    except ItemNotFoundError:
+        return Response({"error": "Unit not found"}, status=404)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)

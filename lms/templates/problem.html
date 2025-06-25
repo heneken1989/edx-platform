@@ -5,6 +5,144 @@ from openedx.core.djangolib.markup import HTML, Text
 %>
 
 <%namespace name='static' file='static_content.html'/>
+
+<script>
+    window.addEventListener('message', function(event) {
+        if (event.data.type === 'problem.check') {
+            const submitButton = document.querySelector('.submit.btn-brand');
+            if (submitButton) {
+                parent.postMessage({ type: 'problem.ready' }, '*');
+            }
+        } else if (event.data.type === 'problem.submit') {
+            console.log('Problem submit received:', event.data.action);
+            
+            const submitButton = document.querySelector('.submit');
+            if (!submitButton) {
+                console.log('Submit button not found');
+                return;
+            }
+
+            if (event.data.action === 'hide') {
+                console.log('Hiding answer');
+                // Hide answers
+                const answers = document.querySelectorAll('.correct, .incorrect');
+                answers.forEach(a => {
+                    if (a.style) {
+                        a.style.display = 'none';
+                    }
+                });
+                
+                // Clear notifications
+                const notifications = document.querySelectorAll('.notification');
+                notifications.forEach(n => {
+                    if (n.parentNode) {
+                        n.parentNode.removeChild(n);
+                    }
+                });
+                
+                parent.postMessage({ type: 'problem.answer.hidden' }, '*');
+            } else if (event.data.action === 'show') {
+                console.log('Showing answer');
+                parent.postMessage({ type: 'problem.submit.start' }, '*');
+                
+                // Click show answer button
+                const showButton = document.querySelector('.show.problem-action-btn');
+                if (showButton) {
+                    showButton.click();
+                    
+                    // Show any hidden answers
+                    const answers = document.querySelectorAll('.correct, .incorrect');
+                    answers.forEach(a => {
+                        if (a.style) {
+                            a.style.display = '';
+                        }
+                    });
+                    
+                    // Trigger submit if not already completed
+                    if (submitButton) {
+                        submitButton.click();
+                    }
+                    
+                    parent.postMessage({ type: 'problem.submit.done' }, '*');
+                }
+            } else if (event.data.action === 'reset') {
+                console.log('Resetting problem');
+                const resetButton = document.querySelector('.reset');
+                if (resetButton) {
+                    resetButton.click();
+                    // Clear any notifications quickly
+                    setTimeout(() => {
+                        const notifications = document.querySelectorAll('.notification');
+                        notifications.forEach(n => n.remove());
+                    }, 100);
+                }
+                parent.postMessage({ type: 'problem.answer.hidden' }, '*');
+            } else if (event.data.action === 'check') {
+                console.log('Checking problem');
+                parent.postMessage({ type: 'problem.submit.start' }, '*');
+                submitButton.click();
+                
+                let checkCount = 0;
+                const maxChecks = 20; // 2 seconds total with 100ms interval
+                
+                function checkCompletion() {
+                    checkCount++;
+                    const notifications = document.querySelectorAll('.notification');
+                    const hasNotification = notifications.length > 0;
+                    const isSubmitEnabled = !submitButton.disabled;
+                    
+                    console.log('Check completion:', { hasNotification, isSubmitEnabled, checkCount });
+                    
+                    if (hasNotification || isSubmitEnabled || checkCount >= maxChecks) {
+                        // Show any hidden answers
+                        const answers = document.querySelectorAll('.problem-action-btn-content, .choicegroup_correct, .choicegroup_incorrect');
+                        answers.forEach(a => a.style.display = '');
+                        parent.postMessage({ type: 'problem.submit.done' }, '*');
+                    } else {
+                        setTimeout(checkCompletion, 100);
+                    }
+                }
+                
+                // Start checking immediately
+                checkCompletion();
+            }
+        }
+    });
+
+    // Set up a mutation observer to watch for state changes
+    const setupStateObserver = () => {
+        const problemContainer = document.querySelector('.problem');
+        if (!problemContainer) return;
+
+        const observer = new MutationObserver((mutations) => {
+            const submitButton = document.querySelector('.submit.btn-brand');
+            const notification = document.querySelector('.notification.notification-submit');
+            const correctNotification = document.querySelector('.notification-correct');
+            const incorrectNotification = document.querySelector('.notification-incorrect');
+            
+            if ((submitButton && !submitButton.disabled) || notification || 
+                correctNotification || incorrectNotification) {
+                parent.postMessage({ type: 'problem.submit.done' }, '*');
+            }
+        });
+
+        observer.observe(problemContainer, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['class', 'disabled']
+        });
+    };
+
+    // Start setup when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', setupStateObserver);
+    } else {
+        setupStateObserver();
+    }
+</script>
+
+<!-- Problem title header removed
 <h3 class="hd hd-3 problem-header" id="${ short_id }-problem-title" aria-describedby="${ id }-problem-progress" tabindex="-1">
   ${ problem['name'] }
 </h3>

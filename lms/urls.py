@@ -25,7 +25,7 @@ from lms.djangoapps.courseware.block_render import (
 )
 from lms.djangoapps.courseware.views import views as courseware_views
 from lms.djangoapps.courseware.views.index import CoursewareIndex
-from lms.djangoapps.courseware.views.views import CourseTabView, EnrollStaffView, StaticCourseTabView
+from lms.djangoapps.courseware.views.views import CourseTabView, EnrollStaffView, StaticCourseTabView, get_all_units,get_unit_by_id,get_all_courses,get_sequences_by_course,get_sections_by_course, get_sequences_by_section, get_first_problem_by_unit
 from lms.djangoapps.debug import views as debug_views
 from lms.djangoapps.discussion import views as discussion_views
 from lms.djangoapps.discussion.config.settings import is_forum_daily_digest_enabled
@@ -134,6 +134,9 @@ urlpatterns = [
 
     # Course API
     path('api/courses/', include('lms.djangoapps.course_api.urls')),
+
+    # Subsequence API
+    path('api/courseware/', include('lms.djangoapps.course_api.subsequence.urls')),
 
     # User API endpoints
     path('api/user/', include('openedx.core.djangoapps.user_api.urls')),
@@ -1052,4 +1055,38 @@ urlpatterns += [
 
 urlpatterns += [
     path('api/notifications/', include('openedx.core.djangoapps.notifications.urls')),
+]
+
+urlpatterns += [
+    # New API endpoint for fetching all units
+    re_path(
+        r'^api/courseware/v1/units/$',
+        get_all_units,
+        name='get_all_units',
+    ),
+]
+
+urlpatterns += [
+    # New API endpoint for fetching a unit by ID
+    re_path(
+        r'^api/courseware/v1/units/(?P<unit_id>[^/]+)/$',
+        get_unit_by_id,
+        name='get_unit_by_id',
+    ),
+]
+
+urlpatterns += [
+    path('api/unit_problem/<str:unit_id>/', get_first_problem_by_unit, name='get_first_problem_by_unit')
+]
+
+urlpatterns += [
+    path('api/all_courses/', get_all_courses, name='get_all_courses'),
+    path('api/all_courses/<str:course_id>/sequences/', get_sequences_by_course, name='get_sequences_by_course'),
+]
+urlpatterns += [
+    path('api/all_courses/<str:course_id>/sections/', get_sections_by_course, name='get_sections_by_course'),
+]
+
+urlpatterns += [
+    path('api/sections/<str:section_id>/sequences/', get_sequences_by_section, name='get_sequences_by_section'),
 ]
