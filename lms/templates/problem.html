@@ -142,12 +142,9 @@ from openedx.core.djangolib.markup import HTML, Text
     }
 </script>
 
-<!-- Problem title header removed
-<h3 class="hd hd-3 problem-header" id="${ short_id }-problem-title" aria-describedby="${ id }-problem-progress" tabindex="-1">
-  ${ problem['name'] }
-</h3>
 
-<div class="problem-progress" id="${ id }-problem-progress"></div>
+<!-- Hide the problem progress div -->
+<div class="problem-progress" id="${ id }-problem-progress" style="display: none;"></div>
 
 <div class="problem">
   ${ HTML(problem['html']) }
@@ -183,13 +180,8 @@ from openedx.core.djangolib.markup import HTML, Text
           <button type="button" class="reset problem-action-btn btn-link btn-small" data-value="${_('Reset')}"><span aria-hidden="true">${_('Reset')}</span><span class="sr">${_("Reset your answer")}</span></button>
       </span>
       % endif
-      % if answer_available:
-      <span class="problem-action-button-wrapper">
-          <button type="button" class="show problem-action-btn btn-link btn-small" aria-describedby="${ short_id }-problem-title"><span class="show-label">${_('Show answer')}</span></button>
-      </span>
-      % endif
     </div>
-    <div class="submit-attempt-container">
+    <div class="submit-attempt-container" style="display: none;">
       <button type="button" class="submit btn-brand" data-submitting="${ submit_button_submitting }" data-value="${ submit_button }" data-should-enable-submit-button="${ should_enable_submit_button }" aria-describedby="submission_feedback_${short_id}" ${'' if should_enable_submit_button else 'disabled'}>
           <span class="submit-label">${ submit_button }</span>
       </button>

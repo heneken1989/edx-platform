@@ -90,40 +90,9 @@ CLEAR_REQUEST_CACHE_ON_TASK_COMPLETION = False
 
 ################################ DEBUG TOOLBAR ################################
 
-INSTALLED_APPS += ['debug_toolbar']
-
-MIDDLEWARE.append('debug_toolbar.middleware.DebugToolbarMiddleware')
-INTERNAL_IPS = ('127.0.0.1',)
-
-DEBUG_TOOLBAR_PANELS = (
-    'debug_toolbar.panels.versions.VersionsPanel',
-    'debug_toolbar.panels.timer.TimerPanel',
-    'debug_toolbar.panels.settings.SettingsPanel',
-    'debug_toolbar.panels.headers.HeadersPanel',
-    'debug_toolbar.panels.request.RequestPanel',
-    'debug_toolbar.panels.sql.SQLPanel',
-    'debug_toolbar.panels.signals.SignalsPanel',
-    'debug_toolbar.panels.profiling.ProfilingPanel',
-    'debug_toolbar.panels.history.HistoryPanel',
-)
-
-DEBUG_TOOLBAR_CONFIG = {
-    # Profile panel is incompatible with wrapped views
-    # See https://github.com/jazzband/django-debug-toolbar/issues/792
-    'DISABLE_PANELS': (
-        'debug_toolbar.panels.profiling.ProfilingPanel',
-    ),
-    'SHOW_TOOLBAR_CALLBACK': 'cms.envs.devstack.should_show_debug_toolbar',
-}
-
-
-def should_show_debug_toolbar(request):  # lint-amnesty, pylint: disable=missing-function-docstring
-    # We always want the toolbar on devstack unless running tests from another Docker container
-    hostname = request.get_host()
-    if hostname.startswith('edx.devstack.studio:') or hostname.startswith('studio.devstack.edx:'):
-        return False
-    return True
-
+# Debug toolbar configuration
+# INSTALLED_APPS += ['debug_toolbar']
+# MIDDLEWARE.append('debug_toolbar.middleware.DebugToolbarMiddleware')
 
 ################################ MILESTONES ################################
 FEATURES['MILESTONES_APP'] = True
