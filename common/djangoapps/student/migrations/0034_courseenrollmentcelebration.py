@@ -7,11 +7,9 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('student', '0033_userprofile_state'),
     ]
-
     operations = [
         migrations.CreateModel(
             name='CourseEnrollmentCelebration',

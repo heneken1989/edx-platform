@@ -146,9 +146,9 @@ from openedx.core.djangolib.markup import HTML, Text
 <!-- Hide the problem progress div -->
 <div class="problem-progress" id="${ id }-problem-progress" style="display: none;"></div>
 
-<div class="problem">
+<div class="problem" style="height: 95vh; overflow-y: auto;">
   ${ HTML(problem['html']) }
-  <div class="action">
+  <div class="action" hidden style="display: none !important;">
     <input type="hidden" name="problem_id" value="${ problem['name'] }" />
     % if demand_hint_possible:
       <div class="problem-hint">
@@ -161,7 +161,7 @@ from openedx.core.djangolib.markup import HTML, Text
       </div>
     % endif
 
-    <div class="problem-action-buttons-wrapper">
+    <div class="problem-action-buttons-wrapper" hidden style="display: none !important;">
       % if demand_hint_possible:
       <span class="problem-action-button-wrapper">
           <button type="button" class="hint-button problem-action-btn btn-link btn-small" data-value="${_('Hint')}" ${'' if should_enable_next_hint else 'disabled'}>${_('Hint')}</button>

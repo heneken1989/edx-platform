@@ -131,12 +131,12 @@ a:visited:not(.btn) {
 }
 
 .content-wrapper {
-  margin: $baseline auto 0 auto;
+  margin: 0 auto 0 auto;
   max-width: map-get($container-max-widths, xl);
-  padding: 0 0 $baseline/2;
+  padding: 0;
 
   @include media-breakpoint-up(md) {
-    padding: 0 $baseline $baseline/2;
+    padding: 0;
   }
 
   @media print {

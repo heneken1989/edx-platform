@@ -101,6 +101,10 @@ urlpatterns = [
     re_path(r'^dashboard/?$', student_views.student_dashboard, name='dashboard'),
     path('change_enrollment', student_views.change_enrollment, name='change_enrollment'),
 
+    # Payment URLs
+    path('payment/', include('lms.djangoapps.payment.urls', namespace='payment')),
+    path('api/payment/', include('lms.djangoapps.payment.urls', namespace='payment_api')),
+
     # Event tracking endpoints
     path('', include('common.djangoapps.track.urls')),
 
