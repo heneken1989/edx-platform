@@ -197,4 +197,6 @@ RUN touch ../edxapp_env
 ENV EDX_PLATFORM_SETTINGS='devstack_docker'
 ENV SERVICE_VARIANT="${SERVICE_VARIANT}"
 EXPOSE ${SERVICE_PORT}
-CMD ./manage.py ${SERVICE_VARIANT} runserver 0.0.0.0:${SERVICE_PORT}
+ENTRYPOINT ["bash", "-c", "./manage.py $SERVICE_VARIANT runserver 0.0.0.0:$SERVICE_PORT"]
+COPY fix_openedx_learning_models.py /tmp/
+RUN python3 /tmp/fix_openedx_learning_models.py
