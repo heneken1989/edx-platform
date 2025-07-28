@@ -1,8 +1,9 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from django.conf import settings
 import json
 import hashlib
 import hmac
@@ -14,15 +15,52 @@ from .models import PaymentTransaction
 from django.utils import timezone
 
 
+def build_payment_url(path, **params):
+    """
+    Build a payment URL with the Learning MFE base URL and query parameters.
+    
+    Args:
+        path (str): The path after the base URL (e.g., 'payment/success')
+        **params: Query parameters to add to the URL
+    
+    Returns:
+        str: Complete URL
+    """
+    # Remove trailing slash from base_url if exists
+    #base_url = "https://nohongodrill.com"
+    base_url = "http://apps.local.openedx.io:2000"
+    # Add path directly without /learning prefix
+    url = f"{base_url}/{path}"
+    
+    if params:
+        query_string = urllib.parse.urlencode(params)
+        url = f"{url}?{query_string}"
+    
+    # Debug logging
+    print(f"=== build_payment_url Debug ===")
+    print(f"Base URL: {base_url}")
+    print(f"Path: {path}")
+    print(f"Params: {params}")
+    print(f"Final URL: {url}")
+    print(f"===============================")
+    
+    return url
+
+
 @login_required
 def payment_test(request):
     """
     Simple test endpoint to check if payment app is working
     """
+    # Debug: Show learning base URL
+    base_url = "http://apps.local.openedx.io:2000"
+    print(f"Learning Base URL: {base_url}")
+    
     return JsonResponse({
         'success': True,
         'message': 'Payment app is working!',
-        'timestamp': datetime.now().isoformat()
+        'timestamp': datetime.now().isoformat(),
+        'learning_base_url': base_url  # Add this to response
     })
 
 
@@ -42,8 +80,10 @@ def create_payment(request):
         payment_type = data.get('paymentType', 'all_access')  # Default to all_access
         course_id = data.get('courseId', 'ALL_COURSES')
         course_name = data.get('courseName', 'Gói All Access - Truy cập tất cả khóa học')
-        return_url = data.get('returnUrl', request.build_absolute_uri("/payment/success"))
-        cancel_url = data.get('cancelUrl', request.build_absolute_uri("/payment/cancel"))
+        
+        # Use dynamic URLs from Learning MFE
+        return_url = data.get('returnUrl', build_payment_url('payment/success'))
+        cancel_url = data.get('cancelUrl', build_payment_url('payment/cancel'))
         use_simulator = data.get('useSimulator', False)  # Default to False for production
         
         print(f"Parsed data: amount={amount}, payment_type={payment_type}, course_id={course_id}, course_name={course_name}")
@@ -190,26 +230,33 @@ def vnpay_callback(request):
                 print(f"All-access subscription activated for user {transaction.user.username}")
                 
                 # Build success URL with enrollment information
-                from django.shortcuts import redirect
-                success_url = f"http://apps.local.openedx.io:2000/learning/payment/success?txnRef={txn_ref}&amount={transaction.amount}&subscription=true&paymentType=all_access"
+                success_params = {
+                    'txnRef': txn_ref,
+                    'amount': transaction.amount,
+                    'subscription': 'true',
+                    'paymentType': 'all_access'
+                }
                 
                 # Add enrollment details if available
                 if enrollment_result and isinstance(enrollment_result, dict):
                     if enrollment_result.get('success'):
                         enrolled_count = enrollment_result.get('enrolled_count', 0)
                         total_courses = enrollment_result.get('total_courses', 0)
-                        success_url += f"&enrolledCount={enrolled_count}&totalCourses={total_courses}"
+                        success_params.update({
+                            'enrolledCount': enrolled_count,
+                            'totalCourses': total_courses
+                        })
                         print(f"Enrollment details: {enrolled_count} new enrollments out of {total_courses} total courses")
                     else:
                         print(f"Enrollment failed: {enrollment_result.get('error', 'Unknown error')}")
                 
+                success_url = build_payment_url('payment/success', **success_params)
                 return redirect(success_url)
                 
             except PaymentTransaction.DoesNotExist:
                 print(f"Transaction {txn_ref} not found")
                 # Redirect to React frontend error page
-                from django.shortcuts import redirect
-                error_url = f"http://apps.local.openedx.io:2000/learning/payment/cancel?txnRef={txn_ref}&error=transaction_not_found"
+                error_url = build_payment_url('payment/cancel', txnRef=txn_ref, error='transaction_not_found')
                 return redirect(error_url)
         else:
             # Payment failed
@@ -222,15 +269,13 @@ def vnpay_callback(request):
                 pass
             
             # Redirect to React frontend cancel page
-            from django.shortcuts import redirect
-            cancel_url = f"http://apps.local.openedx.io:2000/learning/payment/cancel?txnRef={txn_ref}&error=payment_failed"
+            cancel_url = build_payment_url('payment/cancel', txnRef=txn_ref, error='payment_failed')
             return redirect(cancel_url)
             
     except Exception as e:
         print(f"Error processing VNPay callback: {str(e)}")
         # Redirect to React frontend error page
-        from django.shortcuts import redirect
-        error_url = f"http://apps.local.openedx.io:2000/learning/payment/cancel?error={str(e)}"
+        error_url = build_payment_url('payment/cancel', error=str(e))
         return redirect(error_url)
 
 

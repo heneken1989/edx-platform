@@ -210,3 +210,90 @@ VNPAY_USE_SANDBOX=True
 - User có subscription sẽ được enroll vào tất cả khóa học hiện có
 - Hệ thống tự động kiểm tra và cập nhật trạng thái subscription
 - Có thể mở rộng để hỗ trợ nhiều payment gateway khác 
+
+# Payment App Configuration
+
+## Learning MFE URL Configuration
+
+The payment app now dynamically retrieves the Learning MFE base URL from Django settings instead of hardcoding it. This makes the app more flexible and easier to configure across different environments.
+
+### Configuration Options
+
+The app will look for the Learning MFE URL in the following order:
+
+1. **LEARNING_MICROFRONTEND_URL** setting (recommended)
+2. **MFE_CONFIG['LEARNING_BASE_URL']** setting
+3. **Fallback URL** for development
+
+### Setting up the Learning MFE URL
+
+#### Option 1: Using LEARNING_MICROFRONTEND_URL (Recommended)
+
+Add this to your Django settings file (e.g., `lms/envs/common.py`):
+
+```python
+# Learning MFE URL
+LEARNING_MICROFRONTEND_URL = 'http://localhost:2000'  # Development
+# LEARNING_MICROFRONTEND_URL = 'https://learning.yourdomain.com'  # Production
+```
+
+#### Option 2: Using MFE_CONFIG
+
+Add this to your Django settings file:
+
+```python
+MFE_CONFIG = {
+    # ... other config ...
+    'LEARNING_BASE_URL': 'http://localhost:2000',  # Development
+    # 'LEARNING_BASE_URL': 'https://learning.yourdomain.com',  # Production
+}
+```
+
+#### Option 3: Environment Variables
+
+You can also set the URL via environment variables:
+
+```bash
+export LEARNING_MICROFRONTEND_URL="http://localhost:2000"
+```
+
+### Usage in Code
+
+The payment app provides utility functions to build URLs:
+
+```python
+from lms.djangoapps.payment.settings import get_learning_base_url
+from lms.djangoapps.payment.views import build_payment_url
+
+# Get the base URL
+base_url = get_learning_base_url()
+
+# Build a payment URL with parameters
+success_url = build_payment_url('payment/success', 
+                               txnRef='12345', 
+                               amount=100000, 
+                               subscription='true')
+```
+
+### Benefits
+
+- **Environment Flexibility**: Easy to switch between development, staging, and production
+- **No Hardcoding**: URLs are configured centrally in Django settings
+- **Fallback Support**: Multiple configuration options with sensible defaults
+- **Clean Code**: Utility functions make URL building more readable
+
+### Migration from Hardcoded URLs
+
+If you were previously using hardcoded URLs like:
+```python
+# Old way (not recommended)
+success_url = "http://apps.local.openedx.io:2000/learning/payment/success"
+```
+
+You can now use:
+```python
+# New way (recommended)
+success_url = build_payment_url('payment/success', txnRef=txn_ref)
+```
+
+This makes your code more maintainable and environment-agnostic. 
