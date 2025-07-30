@@ -27,7 +27,7 @@ def build_payment_url(path, **params):
         str: Complete URL
     """
     # Remove trailing slash from base_url if exists
-    base_url = "https://nohongodrill.com/learning/"
+    base_url = "https://nohongodrill.com/learning"
     #base_url = "http://apps.local.openedx.io:2000"
     # Add path directly without /learning prefix
     url = f"{base_url}/{path}"
@@ -35,7 +35,7 @@ def build_payment_url(path, **params):
     if params:
         query_string = urllib.parse.urlencode(params)
         url = f"{url}?{query_string}"
-    
+    u
     # Debug logging
     print(f"=== build_payment_url Debug ===")
     print(f"Base URL: {base_url}")
