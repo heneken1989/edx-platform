@@ -35,7 +35,7 @@ def build_payment_url(path, **params):
     if params:
         query_string = urllib.parse.urlencode(params)
         url = f"{url}?{query_string}"
-    u
+    
     # Debug logging
     print(f"=== build_payment_url Debug ===")
     print(f"Base URL: {base_url}")
