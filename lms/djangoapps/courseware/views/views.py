@@ -2382,7 +2382,7 @@ def get_unit_by_id(request, unit_id):
         usage_key = UsageKey.from_string(unit_id)
         
         # Fetch the unit from the split modulestore
-        store = modulestore('split')
+        store = modulestore()
         unit = store.get_item(usage_key)
         
         if not unit:
@@ -2392,8 +2392,47 @@ def get_unit_by_id(request, unit_id):
         unit_info = {
             "id": str(unit.location),
         }
-        # Combine unit info with problem details
-        unit_info['time_limit'] = store.get_item(unit.children[0]).time_limit
+        
+        print(f"[DEBUG] Unit ID: {unit_id}")
+        print(f"[DEBUG] Unit children count: {len(unit.children) if unit.children else 0}")
+        
+        # Try to get time_limit from unit metadata first
+        if hasattr(unit, 'time_limit') and unit.time_limit:
+            print(f"[DEBUG] Found time_limit in unit: {unit.time_limit}")
+            unit_info['time_limit'] = unit.time_limit
+        else:
+            print(f"[DEBUG] No time_limit in unit, checking children...")
+            # Fallback: try to get from first problem child
+            try:
+                if unit.children and len(unit.children) > 0:
+                    first_child = store.get_item(unit.children[0])
+                    print(f"[DEBUG] First child type: {first_child.category}")
+                    print(f"[DEBUG] First child has time_limit: {hasattr(first_child, 'time_limit')}")
+                    
+                    # Check metadata first
+                    if hasattr(first_child, 'time_limit') and first_child.time_limit and first_child.time_limit > 0:
+                        print(f"[DEBUG] Found time_limit in child metadata: {first_child.time_limit}")
+                        unit_info['time_limit'] = first_child.time_limit
+                    else:
+                        print(f"[DEBUG] Child has time_limit attribute but value is: {getattr(first_child, 'time_limit', 'None')}")
+                        # Check XML content for time_limit
+                        if hasattr(first_child, 'data') and first_child.data:
+                            import re
+                            time_limit_match = re.search(r'time_limit="(\d+)"', first_child.data)
+                            if time_limit_match:
+                                time_limit_value = int(time_limit_match.group(1))
+                                print(f"[DEBUG] Found time_limit in XML: {time_limit_value}")
+                                unit_info['time_limit'] = time_limit_value
+                            else:
+                                print(f"[DEBUG] No time_limit found in XML")
+                        else:
+                            print(f"[DEBUG] No data attribute in child")
+                else:
+                    print(f"[DEBUG] No children found in unit")
+            except Exception as e:
+                print(f"Error getting time_limit from child: {e}")
+        
+        print(f"[DEBUG] Final unit_info: {unit_info}")
         return Response(unit_info)
     except ItemNotFoundError:
         return Response({"error": "Unit not found"}, status=404)
