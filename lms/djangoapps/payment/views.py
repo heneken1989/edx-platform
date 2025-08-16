@@ -68,7 +68,7 @@ def payment_test(request):
 @require_http_methods(["POST"])
 def create_payment(request):
     """
-    Create a VNPay payment URL with proper formatting for dev testing
+    Create a VNPay payment URL with proper formatting
     """
     print(f"Payment API called with method: {request.method}")
     print(f"Request headers: {request.headers}")
@@ -80,26 +80,6 @@ def create_payment(request):
         payment_type = data.get('paymentType', 'all_access')  # Default to all_access
         course_id = data.get('courseId', 'ALL_COURSES')
         course_name = data.get('courseName', 'Gói All Access - Truy cập tất cả khóa học')
-        
-        # Use dynamic URLs from Learning MFE
-        return_url = data.get('returnUrl', build_payment_url('payment/success'))
-        cancel_url = data.get('cancelUrl', build_payment_url('payment/cancel'))
-        use_simulator = data.get('useSimulator', False)  # Default to False for production
-        
-        print(f"Parsed data: amount={amount}, payment_type={payment_type}, course_id={course_id}, course_name={course_name}")
-        
-        # VNPay configuration
-        vnpay_url = get_vnpay_url()
-        credentials = get_vnpay_credentials()
-        tmn_code = credentials['tmn_code']
-        hash_secret = credentials['hash_secret']
-        
-        print(f"=== VNPay Configuration ===")
-        print(f"Using VNPay URL: {vnpay_url}")
-        print(f"Using TMN Code: {tmn_code}")
-        print(f"Using Hash Secret: {hash_secret[:10]}...")  # Only show first 10 chars for security
-        print(f"Environment: {'SANDBOX' if VNPAY_CONFIG['USE_SANDBOX'] else 'PRODUCTION'}")
-        print(f"==========================")
         
         # Format amount: multiply by 100 (VNPay expects amount in smallest currency unit)
         vnp_amount = amount * 100
@@ -115,6 +95,12 @@ def create_payment(request):
         
         # Save payment transaction to database
         try:
+            print(f"Creating transaction with data:")
+            print(f"- txn_ref: {txn_ref}")
+            print(f"- amount: {amount}")
+            print(f"- user: {request.user.username}")
+            print(f"- payment_type: all_access")
+            
             transaction = PaymentTransaction.objects.create(
                 txn_ref=txn_ref,
                 amount=amount,
@@ -124,73 +110,92 @@ def create_payment(request):
                 course_id=None,  # No specific course for all access
                 course_name='Gói All Access - Truy cập tất cả khóa học',
                 user=request.user,
-                payment_status='pending'
+                payment_status='pending',  # Use existing payment_status field
+                enrollment_created=False,  # Use existing enrollment_created field
+                subscription_active=False  # Use existing subscription_active field
             )
-            print(f"Payment transaction saved: {txn_ref}")
+            print(f"✅ Payment transaction saved: {txn_ref}")
         except Exception as e:
-            print(f"Error saving transaction: {str(e)}")
-            # Continue with payment even if saving fails
+            print(f"❌ Error saving transaction: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({
+                'success': False,
+                'error': f'Failed to create payment transaction: {str(e)}'
+            }, status=500)
         
-        # Create VNPay parameters
-        vnp_params = {
-            'vnp_Amount': str(vnp_amount),
-            'vnp_Command': 'pay',
-            'vnp_CreateDate': create_date,
-            'vnp_CurrCode': 'VND',
-            'vnp_IpAddr': request.META.get('REMOTE_ADDR', '127.0.0.1'),
-            'vnp_Locale': 'vn',
-            'vnp_OrderInfo': order_info,
-            'vnp_OrderType': 'other',
-            'vnp_ReturnUrl': request.build_absolute_uri('/payment/callback/'),  # Use callback URL
-            'vnp_TmnCode': tmn_code,
-            'vnp_TxnRef': txn_ref,
-            'vnp_Version': '2.1.0'
-        }
-        
-        # Sort parameters alphabetically (VNPay requirement)
-        sorted_params = dict(sorted(vnp_params.items()))
-        
-        # Create query string
-        query_string = '&'.join([f'{k}={urllib.parse.quote_plus(str(v))}' for k, v in sorted_params.items()])
-        
-        # Create hash signature (required even for sandbox)
-        hmac_obj = hmac.new(
-            hash_secret.encode('utf-8'),
-            query_string.encode('utf-8'),
-            hashlib.sha512
-        )
-        secure_hash = hmac_obj.hexdigest()
-        query_string += f'&vnp_SecureHash={secure_hash}'
-        
-        # Create payment URL
-        payment_url = f'{vnpay_url}?{query_string}'
-        
-        # Debug logging
-        print(f"VNPay Debug Info:")
-        print(f"Amount: {amount} -> {vnp_amount}")
-        print(f"Create Date: {create_date}")
-        print(f"Txn Ref: {txn_ref}")
-        print(f"Payment Type: {payment_type}")
-        print(f"Order Info: {order_info}")
-        print(f"Query String: {query_string}")
-        print(f"Payment URL: {payment_url}")
-        
-        # Use simulator for testing, real VNPay for production
-        if use_simulator:
-            payment_url = f"{return_url}?txnRef={txn_ref}&amount={amount}&simulator=true&paymentType=all_access"
-            print(f"Using simulator URL: {payment_url}")
-        
-        payment_data = {
-            'success': True,
-            'paymentUrl': payment_url,
-            'txnRef': txn_ref,
-            'status': 'pending',
-            'paymentType': 'all_access'
-        }
-        
-        print(f"Returning payment data: {payment_data}")
-        return JsonResponse(payment_data)
-        
+        # Only continue if transaction was saved successfully
+        try:
+            # Get VNPay credentials
+            vnpay_url = get_vnpay_url()
+            credentials = get_vnpay_credentials()
+            tmn_code = credentials['tmn_code']
+            hash_secret = credentials['hash_secret']
+            
+            # Create VNPay parameters
+            vnp_params = {
+                'vnp_Amount': str(vnp_amount),
+                'vnp_Command': 'pay',
+                'vnp_CreateDate': create_date,
+                'vnp_CurrCode': 'VND',
+                'vnp_IpAddr': request.META.get('REMOTE_ADDR', '127.0.0.1'),
+                'vnp_Locale': 'vn',
+                'vnp_OrderInfo': order_info,
+                'vnp_OrderType': 'other',
+                'vnp_ReturnUrl': request.build_absolute_uri('/payment/callback/'),
+                'vnp_TmnCode': tmn_code,
+                'vnp_TxnRef': txn_ref,
+                'vnp_Version': '2.1.0'
+            }
+            
+            # Sort parameters alphabetically (VNPay requirement)
+            sorted_params = dict(sorted(vnp_params.items()))
+            
+            # Create query string
+            query_string = '&'.join([f'{k}={urllib.parse.quote_plus(str(v))}' for k, v in sorted_params.items()])
+            
+            # Create hash signature
+            hmac_obj = hmac.new(
+                hash_secret.encode('utf-8'),
+                query_string.encode('utf-8'),
+                hashlib.sha512
+            )
+            secure_hash = hmac_obj.hexdigest()
+            query_string += f'&vnp_SecureHash={secure_hash}'
+            
+            # Create payment URL
+            payment_url = f'{vnpay_url}?{query_string}'
+            
+            # Debug logging
+            print(f"VNPay Debug Info:")
+            print(f"Amount: {amount} -> {vnp_amount}")
+            print(f"Create Date: {create_date}")
+            print(f"Txn Ref: {txn_ref}")
+            print(f"Payment Type: {payment_type}")
+            print(f"Order Info: {order_info}")
+            print(f"Query String: {query_string}")
+            print(f"Payment URL: {payment_url}")
+            
+            payment_data = {
+                'success': True,
+                'paymentUrl': payment_url,
+                'txnRef': txn_ref,
+                'status': 'pending',
+                'paymentType': 'all_access'
+            }
+            
+            print(f"Returning payment data: {payment_data}")
+            return JsonResponse(payment_data)
+            
+        except Exception as e:
+            print(f"Error creating VNPay parameters or URL: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({
+                'success': False,
+                'error': f'Failed to create payment URL: {str(e)}'
+            }, status=500)
+            
     except Exception as e:
         print(f"Payment creation error: {str(e)}")
         import traceback
@@ -224,38 +229,72 @@ def vnpay_callback(request):
                 transaction = PaymentTransaction.objects.get(txn_ref=txn_ref)
                 
                 # Mark transaction as successful and create enrollment/subscription
-                enrollment_result = transaction.mark_as_success()
-                
-                print(f"Payment successful for transaction {txn_ref}")
-                print(f"All-access subscription activated for user {transaction.user.username}")
-                
-                # Build success URL with enrollment information
-                success_params = {
-                    'txnRef': txn_ref,
-                    'amount': transaction.amount,
-                    'subscription': 'true',
-                    'paymentType': 'all_access'
-                }
-                
-                # Add enrollment details if available
-                if enrollment_result and isinstance(enrollment_result, dict):
-                    if enrollment_result.get('success'):
-                        enrolled_count = enrollment_result.get('enrolled_count', 0)
-                        total_courses = enrollment_result.get('total_courses', 0)
-                        success_params.update({
-                            'enrolledCount': enrolled_count,
-                            'totalCourses': total_courses
-                        })
-                        print(f"Enrollment details: {enrolled_count} new enrollments out of {total_courses} total courses")
-                    else:
-                        print(f"Enrollment failed: {enrollment_result.get('error', 'Unknown error')}")
-                
-                success_url = build_payment_url('payment/success', **success_params)
-                return redirect(success_url)
-                
+                if transaction.payment_status != 'success':
+                    # Update transaction status
+                    transaction.payment_status = 'success'
+                    transaction.payment_type = 'all_access'
+                    
+                    # Get all available courses
+                    from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+                    from common.djangoapps.student.models import CourseEnrollment
+                    from common.djangoapps.course_modes.models import CourseMode
+                    from django.db.models import Q
+                    
+                    enrolled_count = 0
+                    now = timezone.now()
+                    
+                    # Get all available courses
+                    available_courses = CourseOverview.objects.filter(
+                        Q(enrollment_start__lte=now, enrollment_end__gt=now) |  # Within enrollment period
+                        Q(enrollment_start__isnull=True, enrollment_end__isnull=True)  # No enrollment period set
+                    ).exclude(
+                        # Exclude courses user is already enrolled in
+                        id__in=CourseEnrollment.objects.filter(
+                            user=transaction.user,
+                            is_active=True
+                        ).values_list('course_id', flat=True)
+                    )
+                    
+                    # Enroll in each available course
+                    for course in available_courses:
+                        try:
+                            # Enroll with verified mode
+                            enrollment = CourseEnrollment.enroll(
+                                user=transaction.user,
+                                course_key=course.id,
+                                mode=CourseMode.VERIFIED,
+                                check_access=True
+                            )
+                            if enrollment:
+                                enrolled_count += 1
+                                print(f"✅ Successfully enrolled {transaction.user.username} in course {course.id}")
+                        except Exception as e:
+                            print(f"❌ Failed to enroll in course {course.id}: {str(e)}")
+                            continue
+                    
+                    # Update transaction with enrollment info
+                    transaction.enrollment_created = enrolled_count > 0  # Use existing enrollment_created field
+                    transaction.enrollment_date = timezone.now() if enrolled_count > 0 else None  # Use existing enrollment_date field
+                    transaction.subscription_active = True  # Use existing subscription_active field
+                    transaction.subscription_expires_at = timezone.now() + timezone.timedelta(days=365)  # Use existing subscription_expires_at field
+                    transaction.save()
+                    
+                    print(f"All-access subscription activated for user {transaction.user.username}")
+                    print(f"Enrolled in {enrolled_count} courses")
+                    
+                    # Build success URL with enrollment information
+                    success_params = {
+                        'txnRef': txn_ref,
+                        'amount': transaction.amount,
+                        'subscription': 'true',
+                        'enrolledCount': enrolled_count,
+                        'totalCourses': available_courses.count()
+                    }
+                    success_url = build_payment_url('payment/success', **success_params)
+                    return redirect(success_url)
+                    
             except PaymentTransaction.DoesNotExist:
                 print(f"Transaction {txn_ref} not found")
-                # Redirect to React frontend error page
                 error_url = build_payment_url('payment/cancel', txnRef=txn_ref, error='transaction_not_found')
                 return redirect(error_url)
         else:
@@ -268,13 +307,13 @@ def vnpay_callback(request):
             except PaymentTransaction.DoesNotExist:
                 pass
             
-            # Redirect to React frontend cancel page
+            # Redirect to cancel page
             cancel_url = build_payment_url('payment/cancel', txnRef=txn_ref, error='payment_failed')
             return redirect(cancel_url)
             
     except Exception as e:
         print(f"Error processing VNPay callback: {str(e)}")
-        # Redirect to React frontend error page
+        # Redirect to error page
         error_url = build_payment_url('payment/cancel', error=str(e))
         return redirect(error_url)
 
