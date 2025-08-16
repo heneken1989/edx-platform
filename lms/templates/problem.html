@@ -142,13 +142,31 @@ from openedx.core.djangolib.markup import HTML, Text
     }
 </script>
 
+<style>
+.problem-wrapper {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: white;
+}
+
+.problem {
+    flex: 1;
+    overflow-y: auto;
+
+    min-height: 0;
+}
+</style>
 
 <!-- Hide the problem progress div -->
 <div class="problem-progress" id="${ id }-problem-progress" style="display: none;"></div>
 
-<div class="problem" style="height: 95vh; overflow-y: auto;">
-  ${ HTML(problem['html']) }
-  <div class="action" hidden style="display: none !important;">
+<div class="problem-wrapper">
+    <div class="problem">
+        ${ HTML(problem['html']) }
+        <div class="action" hidden style="display: none !important;">
     <input type="hidden" name="problem_id" value="${ problem['name'] }" />
     % if demand_hint_possible:
       <div class="problem-hint">
