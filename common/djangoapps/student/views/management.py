@@ -679,7 +679,12 @@ def activate_account(request, key):
         return redirect(settings.AUTHN_MICROFRONTEND_URL + url_path)
 
     # Redirect to learning app instead of dashboard after account activation
-    default_redirect = '/learning' if theming_helpers.get_project_root_name().lower() == 'lms' else 'dashboard'
+    # Hardcode to nihongodrill.com/learning for production
+    if theming_helpers.get_project_root_name().lower() == 'lms':
+        default_redirect = 'https://nihongodrill.com/learning'
+    else:
+        default_redirect = 'dashboard'
+    
     response = redirect(redirect_url) if redirect_url and is_enterprise_learner(request.user) else redirect(default_redirect)
     if show_account_activation_popup:
         response.delete_cookie(
