@@ -13,6 +13,8 @@ import time
 from .settings import get_vnpay_url, get_vnpay_credentials, VNPAY_CONFIG
 from .models import PaymentTransaction
 from django.utils import timezone
+from django.middleware.csrf import get_token
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 
 def build_payment_url(path, **params):
@@ -432,109 +434,103 @@ def check_enrollment_status(request):
     })
 
 
-@login_required
-def get_subscription_details(request):
+@ensure_csrf_cookie
+def get_csrf_token(request):
     """
-    API endpoint to get detailed subscription information for frontend
+    API endpoint to get CSRF token for frontend
     """
-    from .utils import get_user_subscription_info, has_active_subscription
-    from common.djangoapps.student.models import CourseEnrollment
-    from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
-    
-    subscription_info = get_user_subscription_info(request.user)
-    has_subscription = has_active_subscription(request.user)
-    
-    # Get user's enrolled courses
-    if has_subscription:
-        # User has all-access, get all available courses
-        all_courses = CourseOverview.objects.filter(
-            start__lte=timezone.now() + timezone.timedelta(days=30),
-            end__gte=timezone.now(),
-        ).values('id', 'display_name', 'start', 'end')
-        courses = list(all_courses)
-        total_courses = len(courses)
-    else:
-        # User only has individual enrollments
-        enrollments = CourseEnrollment.objects.filter(
-            user=request.user,
-            is_active=True
-        ).select_related('course')
-        
-        courses = []
-        for enrollment in enrollments:
-            courses.append({
-                'id': enrollment.course.id,
-                'display_name': enrollment.course.display_name,
-                'start': enrollment.course.start,
-                'end': enrollment.course.end,
-                'enrollment_mode': enrollment.mode
-            })
-        total_courses = len(courses)
-    
-    # Get recent transactions
-    recent_transactions = PaymentTransaction.objects.filter(
-        user=request.user,
-        payment_type='all_access'
-    ).order_by('-created_at')[:5]
-    
-    transactions = []
-    for txn in recent_transactions:
-        transactions.append({
-            'txn_ref': txn.txn_ref,
-            'amount': float(txn.amount),
-            'payment_status': txn.payment_status,
-            'created_at': txn.created_at.isoformat(),
-            'subscription_active': txn.subscription_active,
-            'subscription_expires_at': txn.subscription_expires_at.isoformat() if txn.subscription_expires_at else None
+    try:
+        token = get_token(request)
+        return JsonResponse({
+            'csrf_token': token,
+            'success': True
         })
-    
-    return JsonResponse({
-        'success': True,
-        'has_subscription': has_subscription,
-        'subscription_info': subscription_info,
-        'courses': courses,
-        'total_courses': total_courses,
-        'recent_transactions': transactions
-    })
+    except Exception as e:
+        print(f"Error getting CSRF token: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
 
 
 @login_required
-def get_all_courses_for_user(request):
+def auto_enroll_all_courses(request):
     """
-    API endpoint to get all courses that user can access
+    API endpoint to auto enroll user in all available courses
+    This reuses the same logic as successful VNPay payment
     """
-    from .utils import has_active_subscription
-    from common.djangoapps.student.models import CourseEnrollment
-    from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
-    
-    if has_active_subscription(request.user):
-        # User has all-access subscription, return all available courses
-        all_courses = CourseOverview.objects.filter(
-            start__lte=timezone.now(),
-            end__gte=timezone.now(),
-        ).values('id', 'display_name', 'start', 'end')
-        
-        courses = list(all_courses)
-    else:
-        # User only has access to enrolled courses
-        enrollments = CourseEnrollment.objects.filter(
-            user=request.user,
-            is_active=True
-        ).select_related('course')
-        
-        courses = []
-        for enrollment in enrollments:
-            courses.append({
-                'id': enrollment.course.id,
-                'display_name': enrollment.course.display_name,
-                'start': enrollment.course.start,
-                'end': enrollment.course.end,
-                'enrollment_mode': enrollment.mode
-            })
-    
-    return JsonResponse({
-        'success': True,
-        'has_all_access': has_active_subscription(request.user),
-        'courses': courses,
-        'total_courses': len(courses)
-    }) 
+    try:
+        from common.djangoapps.student.models import CourseEnrollment
+        from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+        from common.djangoapps.course_modes.models import CourseMode
+        from django.db.models import Q
+
+        user = request.user
+        print(f"=== AUTO ENROLL START ===")
+        print(f"User: {user.username} (ID: {user.id})")
+        print(f"Request method: {request.method}")
+        print(f"Request headers: {dict(request.headers)}")
+
+        # Use the same logic as VNPay callback
+        now = timezone.now()
+        print(f"Current time: {now}")
+
+        # Get all available courses (same filter as VNPay callback)
+        available_courses = CourseOverview.objects.filter(
+            Q(enrollment_start__lte=now, enrollment_end__gt=now) |  # Within enrollment period
+            Q(enrollment_start__isnull=True, enrollment_end__isnull=True)  # No enrollment period set
+        ).exclude(
+            # Exclude courses user is already enrolled in
+            id__in=CourseEnrollment.objects.filter(
+                user=user,
+                is_active=True
+            ).values_list('course_id', flat=True)
+        )
+
+        print(f"Available courses found: {available_courses.count()}")
+        for course in available_courses:
+            print(f"  - {course.id}: {course.display_name}")
+
+        enrolled_count = 0
+
+        # Enroll in each available course (same logic as VNPay callback)
+        for course in available_courses:
+            try:
+                print(f"Attempting to enroll in course: {course.id}")
+                # Enroll with verified mode (same as VNPay callback)
+                enrollment = CourseEnrollment.enroll(
+                    user=user,
+                    course_key=course.id,
+                    mode=CourseMode.VERIFIED,
+                    check_access=True
+                )
+                if enrollment:
+                    enrolled_count += 1
+                    print(f"✅ Successfully enrolled {user.username} in course {course.id}")
+                else:
+                    print(f"❌ Failed to enroll {user.username} in course {course.id}")
+            except Exception as e:
+                print(f"❌ Error enrolling in course {course.id}: {str(e)}")
+                continue
+
+        print(f"=== AUTO ENROLL COMPLETE ===")
+        print(f"User: {user.username}")
+        print(f"Newly enrolled: {enrolled_count} courses")
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Successfully enrolled in {enrolled_count} courses',
+            'enrolled_count': enrolled_count,
+            'total_available_courses': available_courses.count(),
+            'user': user.username
+        })
+
+    except Exception as e:
+        print(f"=== AUTO ENROLL ERROR ===")
+        print(f"Error in auto_enroll_all_courses: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

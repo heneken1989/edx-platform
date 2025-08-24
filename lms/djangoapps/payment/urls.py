@@ -5,11 +5,11 @@ app_name = 'payment'
 
 urlpatterns = [
     path('test/', views.payment_test, name='payment_test'),
+    path('csrf-token/', views.get_csrf_token, name='get_csrf_token'),
     path('create/', views.create_payment, name='create_payment_api'),
     path('callback/', views.vnpay_callback, name='vnpay_callback'),
     path('subscription/status/', views.check_subscription_status, name='check_subscription_status'),
-    path('subscription/details/', views.get_subscription_details, name='get_subscription_details'),
     path('enrollment/status/', views.check_enrollment_status, name='check_enrollment_status'),
     path('course/<str:course_key>/access/', views.check_course_access, name='check_course_access'),
-    path('courses/', views.get_all_courses_for_user, name='get_all_courses_for_user'),
+    path('auto-enroll-all/', views.auto_enroll_all_courses, name='auto_enroll_all_courses'),
 ] 
