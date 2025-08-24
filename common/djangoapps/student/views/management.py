@@ -678,7 +678,9 @@ def activate_account(request, key):
         url_path = '/login?{}'.format(urllib.parse.urlencode(params))
         return redirect(settings.AUTHN_MICROFRONTEND_URL + url_path)
 
-    response = redirect(redirect_url) if redirect_url and is_enterprise_learner(request.user) else redirect('dashboard')
+    # Redirect to learning app instead of dashboard after account activation
+    default_redirect = '/learning' if theming_helpers.get_project_root_name().lower() == 'lms' else 'dashboard'
+    response = redirect(redirect_url) if redirect_url and is_enterprise_learner(request.user) else redirect(default_redirect)
     if show_account_activation_popup:
         response.delete_cookie(
             settings.SHOW_ACTIVATE_CTA_POPUP_COOKIE_NAME,
