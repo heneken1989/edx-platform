@@ -141,6 +141,9 @@ urlpatterns = [
 
     # Subsequence API
     path('api/courseware/', include('lms.djangoapps.course_api.subsequence.urls')),
+    
+    # Simple completion API for statistics
+    path('courseware/', include('lms.djangoapps.courseware.completion_urls')),
 
     # User API endpoints
     path('api/user/', include('openedx.core.djangoapps.user_api.urls')),

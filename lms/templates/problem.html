@@ -314,4 +314,60 @@ from openedx.core.djangolib.markup import HTML, Text
     function emit_event(message) {
         parent.postMessage(message, '*');
     }
+    
+    // Handler for iframe requests for block ID
+    window.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'getBlockId') {
+            // Try to get actual block ID from current context
+            let blockId = null;
+            
+            // Method 1: From URL - look for problem usage_id specifically
+            try {
+                const url = window.location.href;
+                const match = url.match(/usage_id=([^&]+)/);
+                if (match) {
+                    blockId = decodeURIComponent(match[1]);
+                    // If this is a vertical, try to find child problem
+                    if (blockId.includes('type@vertical')) {
+                        console.log('Found vertical ID, looking for problem child...');
+                        // Try to find problem element inside the page
+                        const problemElement = document.querySelector('[data-usage-id*="type@problem"]');
+                        if (problemElement && problemElement.dataset.usageId) {
+                            blockId = problemElement.dataset.usageId;
+                            console.log('Found problem ID:', blockId);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log('Cannot get block ID from URL:', e);
+            }
+            
+            // Method 2: From problem element data
+            try {
+                const problemElement = document.querySelector('[data-usage-id], [data-block-id]');
+                if (problemElement) {
+                    blockId = problemElement.dataset.usageId || problemElement.dataset.blockId;
+                }
+            } catch (e) {
+                console.log('Cannot get block ID from element:', e);
+            }
+            
+            // Method 3: From global variables
+            try {
+                if (typeof window.usage_id !== 'undefined') {
+                    blockId = window.usage_id;
+                }
+            } catch (e) {
+                console.log('Cannot get block ID from globals:', e);
+            }
+            
+            console.log('Sending block ID to iframe:', blockId);
+            
+            // Send response back to iframe
+            event.source.postMessage({
+                type: 'blockIdResponse',
+                blockId: blockId
+            }, '*');
+        }
+    });
 </script>

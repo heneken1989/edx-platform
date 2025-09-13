@@ -27,7 +27,7 @@ def xframe_allow_whitelisted(view_func):
                 parsed_url = urlparse(referer)
                 hostname = parsed_url.hostname
                 if LTIProviderConfig.objects.current_set().filter(lti_hostname=hostname, enabled=True).exists():
-                    x_frame_option = 'ALLOW'
+                    x_frame_option = 'SAMEORIGIN'
         resp['X-Frame-Options'] = x_frame_option
         return resp
     return wraps(view_func)(wrapped_view)

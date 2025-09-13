@@ -43,8 +43,9 @@
   <br/>
     <p id="answer_${id}" class="answer"></p>
 
-    <div class="indicator-container">
-        <%include file="status_span.html" args="status=status, status_id=id"/>
+    <!-- DISABLED: indicator-container to prevent status icons -->
+    <div class="indicator-container" style="display: none !important; visibility: hidden !important;">
+        <!-- Status indicators disabled for custom quiz -->
     </div>
 
     <div class="error_message" style="padding: 5px 5px 5px 5px; background-color:#FA6666; height:60px;width:400px; display: none"></div>
