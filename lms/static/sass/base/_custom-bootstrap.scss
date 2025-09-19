@@ -1,0 +1,25 @@
+// Override container classes
+@media (min-width: 1200px) {
+  .container-xl,
+  .container-lg,
+  .container-md,
+  .container-sm,
+  .container {
+    max-width: 100%;
+  }
+}
+
+// Override content wrapper max-width
+.content-wrapper {
+  max-width: 100%;
+}
+
+// Override unit container max-width
+.unit-container {
+  max-width: 100%;
+}
+
+// Override sequence container max-width
+.sequence-container {
+  max-width: 100%;
+}

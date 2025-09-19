@@ -9,12 +9,40 @@ from openedx.core.djangolib.markup import HTML, Text
 <script>
     window.addEventListener('message', function(event) {
         if (event.data.type === 'problem.check') {
+            console.log('🔄 problem.html received problem.check, forwarding to ALL iframes');
+            
+            // Forward to ALL iframes
+            const allIframes = document.querySelectorAll('iframe');
+            console.log('🔄 Found iframes:', allIframes.length);
+            
+            allIframes.forEach((iframe, index) => {
+                try {
+                    console.log('🔄 Forwarding problem.check to iframe ' + index + ':', iframe.src);
+                    iframe.contentWindow.postMessage({ type: 'problem.check' }, '*');
+                } catch (e) {
+                    console.log('🔄 Error forwarding to iframe ' + index + ':', e.message);
+                }
+            });
+            
             const submitButton = document.querySelector('.submit.btn-brand');
             if (submitButton) {
                 parent.postMessage({ type: 'problem.ready' }, '*');
             }
         } else if (event.data.type === 'problem.submit') {
             console.log('Problem submit received:', event.data.action);
+            
+            // Forward to ALL iframes first
+            const allIframes = document.querySelectorAll('iframe');
+            console.log('🔄 Forwarding problem.submit to ALL iframes:', allIframes.length);
+            
+            allIframes.forEach((iframe, index) => {
+                try {
+                    console.log('🔄 Forwarding problem.submit to iframe ' + index + ':', iframe.src);
+                    iframe.contentWindow.postMessage({ type: 'problem.submit', action: event.data.action }, '*');
+                } catch (e) {
+                    console.log('🔄 Error forwarding problem.submit to iframe ' + index + ':', e.message);
+                }
+            });
             
             const submitButton = document.querySelector('.submit');
             if (!submitButton) {
@@ -316,7 +344,22 @@ from openedx.core.djangolib.markup import HTML, Text
     }
     
     // Handler for iframe requests for block ID
+    // Listen for quiz data from quiz iframe
     window.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'quiz.data.ready') {
+            console.log('🔍 DEBUG - problem.html received quiz data:', event.data.quizData);
+            console.log('🔍 DEBUG - template config:', event.data.templateConfig);
+            
+            // Forward quiz data to parent page
+            parent.postMessage({
+                type: 'quiz.data.ready',
+                quizData: event.data.quizData,
+                templateConfig: event.data.templateConfig
+            }, '*');
+            
+            return;
+        }
+        
         if (event.data && event.data.type === 'getBlockId') {
             // Try to get actual block ID from current context
             let blockId = null;

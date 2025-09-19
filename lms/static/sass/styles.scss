@@ -1,0 +1,33 @@
+// Import custom overrides first
+@import "base/custom-bootstrap";
+
+// Import other styles
+@import "base/base";
+@import "base/grid-settings";
+@import "base/layouts";
+
+// Override container classes
+@media (min-width: 1200px) {
+  .container-xl,
+  .container-lg,
+  .container-md,
+  .container-sm,
+  .container {
+    max-width: 100% !important;
+  }
+}
+
+// Override content wrapper max-width
+.content-wrapper {
+  max-width: 100% !important;
+}
+
+// Override unit container max-width
+.unit-container {
+  max-width: 100% !important;
+}
+
+// Override sequence container max-width
+.sequence-container {
+  max-width: 100% !important;
+}
