@@ -2,6 +2,13 @@
 
 @import '_builtin-block-variables';
 
+
+// Font stacks (fallback cho brand-openedx)
+$serif: Georgia, "Times New Roman", Times, serif !default;
+$sans-serif: "Helvetica Neue", Helvetica, Arial, sans-serif !default;
+$mono: Menlo, Monaco, Consolas, "Courier New", monospace !default;
+
+
 $text-width-readability-max: 1080px;
 
 // LMS-only colors
