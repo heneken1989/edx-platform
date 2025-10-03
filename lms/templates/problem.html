@@ -349,8 +349,9 @@ from openedx.core.djangolib.markup import HTML, Text
         if (event.data && event.data.type === 'quiz.data.ready') {
             console.log('🔍 DEBUG - problem.html received quiz data:', event.data.quizData);
             console.log('🔍 DEBUG - template config:', event.data.templateConfig);
+            console.log('🔍 DEBUG - Template ID:', event.data.quizData?.templateId);
             
-            // Forward quiz data to parent page
+            // Forward quiz data to parent page (PersistentNavigationBar)
             parent.postMessage({
                 type: 'quiz.data.ready',
                 quizData: event.data.quizData,

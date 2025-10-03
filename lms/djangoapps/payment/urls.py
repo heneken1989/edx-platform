@@ -12,4 +12,5 @@ urlpatterns = [
     path('enrollment/status/', views.check_enrollment_status, name='check_enrollment_status'),
     path('course/<str:course_key>/access/', views.check_course_access, name='check_course_access'),
     path('auto-enroll-all/', views.auto_enroll_all_courses, name='auto_enroll_all_courses'),
+    path('test-auto-enroll-hh/', views.test_auto_enroll_hh, name='test_auto_enroll_hh'),
 ] 

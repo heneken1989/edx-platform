@@ -453,77 +453,123 @@ def get_csrf_token(request):
         }, status=500)
 
 
-@login_required
+@csrf_exempt
+def test_auto_enroll_hh(request):
+    """
+    Test endpoint để auto enroll user hh
+    """
+    try:
+        from lms.djangoapps.payment.signals import auto_enroll_user_in_all_courses
+        from django.contrib.auth.models import User
+        
+        # Lấy user hh
+        try:
+            user = User.objects.get(username='hh')
+        except User.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'User hh not found'
+            }, status=404)
+        
+        print(f"=== TEST AUTO ENROLL FOR USER HH ===")
+        print(f"User: {user.username} (ID: {user.id})")
+        
+        # Test auto enrollment function
+        result = auto_enroll_user_in_all_courses(user)
+        
+        if result:
+            print(f"=== AUTO ENROLL COMPLETE ===")
+            print(f"Result: {result}")
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Successfully enrolled user hh in {result["enrolled_count"]} courses',
+                'enrolled_count': result['enrolled_count'],
+                'total_available_courses': result['total_courses'],
+                'user': user.username
+            })
+        else:
+            print(f"=== AUTO ENROLL FAILED ===")
+            
+            return JsonResponse({
+                'success': False,
+                'error': 'Auto enrollment failed'
+            }, status=500)
+
+    except Exception as e:
+        print(f"=== AUTO ENROLL ERROR ===")
+        print(f"Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
 def auto_enroll_all_courses(request):
     """
     API endpoint to auto enroll user in all available courses
-    This reuses the same logic as successful VNPay payment
+    This uses the shared auto enrollment function
     """
     try:
-        from common.djangoapps.student.models import CourseEnrollment
-        from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
-        from common.djangoapps.course_modes.models import CourseMode
-        from django.db.models import Q
-
-        user = request.user
-        print(f"=== AUTO ENROLL START ===")
-        print(f"User: {user.username} (ID: {user.id})")
+        from lms.djangoapps.payment.signals import auto_enroll_user_in_all_courses
+        
+        # Check for JWT authentication
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            # JWT authentication
+            jwt_token = auth_header.split(' ')[1]
+            try:
+                from openedx.core.djangoapps.oauth_dispatch.jwt import create_jwt_for_user
+                from openedx.core.djangoapps.user_authn.utils import get_user_from_jwt
+                user = get_user_from_jwt(jwt_token)
+                print(f"=== AUTO ENROLL START (JWT) ===")
+                print(f"User: {user.username} (ID: {user.id})")
+            except Exception as e:
+                print(f"JWT authentication failed: {e}")
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invalid JWT token'
+                }, status=401)
+        else:
+            # Session authentication
+            if not request.user.is_authenticated:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Authentication required'
+                }, status=401)
+            user = request.user
+            print(f"=== AUTO ENROLL START (Session) ===")
+            print(f"User: {user.username} (ID: {user.id})")
+        
         print(f"Request method: {request.method}")
         print(f"Request headers: {dict(request.headers)}")
 
-        # Use the same logic as VNPay callback
-        now = timezone.now()
-        print(f"Current time: {now}")
+        # Use the shared auto enrollment function
+        result = auto_enroll_user_in_all_courses(user)
+        
+        if result:
+            print(f"=== AUTO ENROLL COMPLETE ===")
+            print(f"User: {user.username}")
+            print(f"Result: {result}")
 
-        # Get all available courses (same filter as VNPay callback)
-        available_courses = CourseOverview.objects.filter(
-            Q(enrollment_start__lte=now, enrollment_end__gt=now) |  # Within enrollment period
-            Q(enrollment_start__isnull=True, enrollment_end__isnull=True)  # No enrollment period set
-        ).exclude(
-            # Exclude courses user is already enrolled in
-            id__in=CourseEnrollment.objects.filter(
-                user=user,
-                is_active=True
-            ).values_list('course_id', flat=True)
-        )
-
-        print(f"Available courses found: {available_courses.count()}")
-        for course in available_courses:
-            print(f"  - {course.id}: {course.display_name}")
-
-        enrolled_count = 0
-
-        # Enroll in each available course (same logic as VNPay callback)
-        for course in available_courses:
-            try:
-                print(f"Attempting to enroll in course: {course.id}")
-                # Enroll with verified mode (same as VNPay callback)
-                enrollment = CourseEnrollment.enroll(
-                    user=user,
-                    course_key=course.id,
-                    mode=CourseMode.VERIFIED,
-                    check_access=True
-                )
-                if enrollment:
-                    enrolled_count += 1
-                    print(f"✅ Successfully enrolled {user.username} in course {course.id}")
-                else:
-                    print(f"❌ Failed to enroll {user.username} in course {course.id}")
-            except Exception as e:
-                print(f"❌ Error enrolling in course {course.id}: {str(e)}")
-                continue
-
-        print(f"=== AUTO ENROLL COMPLETE ===")
-        print(f"User: {user.username}")
-        print(f"Newly enrolled: {enrolled_count} courses")
-
-        return JsonResponse({
-            'success': True,
-            'message': f'Successfully enrolled in {enrolled_count} courses',
-            'enrolled_count': enrolled_count,
-            'total_available_courses': available_courses.count(),
-            'user': user.username
-        })
+            return JsonResponse({
+                'success': True,
+                'message': f'Successfully enrolled in {result["enrolled_count"]} courses',
+                'enrolled_count': result['enrolled_count'],
+                'total_available_courses': result['total_courses'],
+                'user': user.username
+            })
+        else:
+            print(f"=== AUTO ENROLL FAILED ===")
+            print(f"User: {user.username}")
+            
+            return JsonResponse({
+                'success': False,
+                'error': 'Auto enrollment failed'
+            }, status=500)
 
     except Exception as e:
         print(f"=== AUTO ENROLL ERROR ===")
