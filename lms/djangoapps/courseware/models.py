@@ -570,3 +570,33 @@ class FinancialAssistanceConfiguration(ConfigurationModel):
         Getter function to get service user for Financial Assistance backend.
         """
         return get_user_model().objects.get(username=self.service_username)
+
+
+class QuizResult(models.Model):
+    """
+    Model to store quiz results for test series
+    """
+    STATUS_CHOICES = [
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    course_id = CourseKeyField(max_length=255)
+    section_id = models.CharField(max_length=255)  # The section/sequence ID
+    unit_id = UsageKeyField(max_length=255)  # The unit/block ID
+    template_id = models.IntegerField()  # The template ID (e.g., 67)
+    test_session_id = models.CharField(max_length=255, null=True, blank=True)  # Groups quiz results for one test session
+    quiz_data = models.JSONField()  # Store the quiz data as JSON
+    score = models.FloatField()  # The score (0.0 to 1.0)
+    is_correct = models.BooleanField()  # Whether the answer is correct
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='processing')  # Test status
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'courseware_quizresult'
+        unique_together = ('user', 'section_id', 'unit_id', 'template_id', 'test_session_id')
+
+    def __str__(self):
+        return f"{self.user.username} - {self.section_id} - {self.unit_id} - {self.template_id}"

@@ -43,6 +43,36 @@ from openedx.core.djangolib.markup import HTML, Text
                     console.log('🔄 Error forwarding problem.submit to iframe ' + index + ':', e.message);
                 }
             });
+        } else if (event.data.type === 'quiz.get_answers') {
+            console.log('Quiz get answers received:', event.data);
+            
+            // Forward to ALL iframes
+            const allIframes = document.querySelectorAll('iframe');
+            console.log('🔄 Forwarding quiz.get_answers to ALL iframes:', allIframes.length);
+            
+            allIframes.forEach((iframe, index) => {
+                try {
+                    console.log('🔄 Forwarding quiz.get_answers to iframe ' + index + ':', iframe.src);
+                    iframe.contentWindow.postMessage({ type: 'quiz.get_answers' }, '*');
+                } catch (e) {
+                    console.log('🔄 Error forwarding quiz.get_answers to iframe ' + index + ':', e.message);
+                }
+            });
+        } else if (event.data.type === 'quiz.save_results') {
+            console.log('Quiz save results received:', event.data.data);
+            
+            // Forward to ALL iframes
+            const allIframes = document.querySelectorAll('iframe');
+            console.log('🔄 Forwarding quiz.save_results to ALL iframes:', allIframes.length);
+            
+            allIframes.forEach((iframe, index) => {
+                try {
+                    console.log('🔄 Forwarding quiz.save_results to iframe ' + index + ':', iframe.src);
+                    iframe.contentWindow.postMessage({ type: 'quiz.save_results', data: event.data.data }, '*');
+                } catch (e) {
+                    console.log('🔄 Error forwarding quiz.save_results to iframe ' + index + ':', e.message);
+                }
+            });
             
             const submitButton = document.querySelector('.submit');
             if (!submitButton) {
@@ -358,6 +388,22 @@ from openedx.core.djangolib.markup import HTML, Text
                 templateConfig: event.data.templateConfig
             }, '*');
             
+            return;
+        }
+        
+        if (event.data && event.data.type === 'quiz.answers') {
+            console.log('🔄 problem.html received quiz.answers:', event.data);
+            console.log('🔄 Forwarding quiz.answers to parent:', event.data);
+            parent.postMessage(event.data, '*');
+            console.log('🔄 quiz.answers forwarded to parent successfully');
+            return;
+        }
+        
+        if (event.data && event.data.type === 'quiz.results.saved') {
+            console.log('🔄 problem.html received quiz.results.saved:', event.data);
+            console.log('🔄 Forwarding quiz.results.saved to parent:', event.data);
+            parent.postMessage(event.data, '*');
+            console.log('🔄 quiz.results.saved forwarded to parent successfully');
             return;
         }
         
