@@ -501,7 +501,7 @@ class CourseNavigationBlocksView(RetrieveAPIView):
             for section_data in course_sections:
                 section_data['children'] = self.get_accessible_sequences(
                     user_course_outline,
-                    section_data.get('children', ['completion'])
+                    section_data.get('children', [])
                 )
                 accessible_sequence_ids = {str(usage_key) for usage_key in user_course_outline.accessible_sequences}
                 for sequence_data in section_data['children']:
@@ -586,7 +586,7 @@ class CourseNavigationBlocksView(RetrieveAPIView):
         available_sequence_ids = set(map(str, user_course_outline.sequences))
         return [
             seq_data for seq_data in course_sequences
-            if seq_data['id'] in available_sequence_ids or seq_data['type'] != 'sequential'
+            if isinstance(seq_data, dict) and (seq_data['id'] in available_sequence_ids or seq_data.get('type') != 'sequential')
         ]
 
     @cached_property
