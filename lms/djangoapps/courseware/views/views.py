@@ -2511,6 +2511,44 @@ def get_sequences_by_section(request, section_id):
         return Response({"error": str(e)}, status=500)
 
 @api_view(['GET'])
+def get_units_by_sequence(request, sequence_id):
+    """
+    Returns a list of units (verticals) for a given sequence_id.
+    This is a lightweight alternative to fetching the entire course navigation.
+    """
+    try:
+        sequence_key = UsageKey.from_string(sequence_id)
+        sequence = modulestore().get_item(sequence_key)
+        
+        if not sequence:
+            return Response({"error": "Sequence not found"}, status=404)
+        
+        units = []
+        for vertical in sequence.get_children():
+            # vertical might be a UsageKey or a block object
+            if hasattr(vertical, 'location'):
+                # It's a block object, get its UsageKey
+                vertical_key = vertical.location
+                display_name = getattr(vertical, 'display_name', None)
+            else:
+                # It's already a UsageKey
+                vertical_key = vertical
+                try:
+                    vertical_obj = modulestore().get_item(vertical_key)
+                    display_name = getattr(vertical_obj, 'display_name', None)
+                except Exception as e:
+                    display_name = f"ERROR: {e}"
+            
+            units.append({
+                "id": str(vertical_key),
+                "display_name": display_name,
+            })
+        
+        return Response(units)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+@api_view(['GET'])
 def get_first_problem_by_unit(request, unit_id):
     """
     Returns the first problem block from a unit (vertical block).

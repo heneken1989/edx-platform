@@ -25,7 +25,7 @@ from lms.djangoapps.courseware.block_render import (
 )
 from lms.djangoapps.courseware.views import views as courseware_views
 from lms.djangoapps.courseware.views.index import CoursewareIndex
-from lms.djangoapps.courseware.views.views import CourseTabView, EnrollStaffView, StaticCourseTabView, get_all_units,get_unit_by_id,get_all_courses,get_sequences_by_course,get_sections_by_course, get_sequences_by_section, get_first_problem_by_unit
+from lms.djangoapps.courseware.views.views import CourseTabView, EnrollStaffView, StaticCourseTabView, get_all_units,get_unit_by_id,get_all_courses,get_sequences_by_course,get_sections_by_course, get_sequences_by_section, get_units_by_sequence, get_first_problem_by_unit
 from lms.djangoapps.debug import views as debug_views
 from lms.djangoapps.discussion import views as discussion_views
 from lms.djangoapps.discussion.config.settings import is_forum_daily_digest_enabled
@@ -1096,4 +1096,5 @@ urlpatterns += [
 
 urlpatterns += [
     path('api/sections/<str:section_id>/sequences/', get_sequences_by_section, name='get_sequences_by_section'),
+    path('api/sequences/<str:sequence_id>/units/', get_units_by_sequence, name='get_units_by_sequence'),
 ]

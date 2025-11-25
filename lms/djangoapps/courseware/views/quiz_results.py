@@ -39,21 +39,43 @@ def save_quiz_results(request):
         
         # Save to database
         try:
-            # Create or update QuizResult
-            quiz_result, created = QuizResult.objects.update_or_create(
+            # Check if record already exists to prevent duplicate
+            # Use get() first to check existence, then update_or_create to handle race conditions
+            existing = QuizResult.objects.filter(
                 user_id=user_id,
                 section_id=section_id,
                 unit_id=unit_id,
                 template_id=template_id,
-                test_session_id=test_session_id,
-                defaults={
-                    'course_id': course_id,
-                    'quiz_data': quiz_data,
-                    'score': quiz_data.get('score', 0),
-                    'is_correct': quiz_data.get('correctCount', 0) > 0,
-                    'status': status
-                }
-            )
+                test_session_id=test_session_id
+            ).first()
+            
+            if existing:
+                # Record exists, just update it (prevent duplicate)
+                logger.info(f"Record already exists for user {user_id}, session {test_session_id}, unit {unit_id}. Updating instead of creating duplicate.")
+                existing.course_id = course_id
+                existing.quiz_data = quiz_data
+                existing.score = quiz_data.get('score', 0)
+                existing.is_correct = quiz_data.get('correctCount', 0) > 0
+                existing.status = status
+                existing.save()
+                created = False
+                quiz_result = existing
+            else:
+                # Create or update QuizResult (handle race condition)
+                quiz_result, created = QuizResult.objects.update_or_create(
+                    user_id=user_id,
+                    section_id=section_id,
+                    unit_id=unit_id,
+                    template_id=template_id,
+                    test_session_id=test_session_id,
+                    defaults={
+                        'course_id': course_id,
+                        'quiz_data': quiz_data,
+                        'score': quiz_data.get('score', 0),
+                        'is_correct': quiz_data.get('correctCount', 0) > 0,
+                        'status': status
+                    }
+                )
             
             # If status is 'completed', update all records with same test_session_id to completed
             if status == 'completed':
@@ -152,30 +174,75 @@ def get_test_summary(request):
             logger.info(f"Fetching all test results for user {user_id}, section_id: {section_id}")
             
             try:
-                # Query QuizResult model - only get completed results
+                # Query QuizResult model - get ALL completed results (not just limit)
+                # We need to get all results first, then group by test_session_id, then limit by unique sessions
                 results = QuizResult.objects.filter(user_id=user_id, status='completed')
                 if section_id:
                     results = results.filter(section_id=section_id)
-                results = results.order_by('-created_at')[:limit]
+                results = results.order_by('-created_at')
                 
-                # Convert to summary format
-                summaries = []
+                # Group by test_session_id to get unique test sessions
+                # Use a dict to track unique test sessions and keep the most recent completed_at for each session
+                unique_sessions = {}
                 for result in results:
+                    test_session_id = result.test_session_id
+                    if not test_session_id:
+                        continue
+                    
+                    # If we haven't seen this test_session_id, add it
+                    if test_session_id not in unique_sessions:
+                        unique_sessions[test_session_id] = {
+                            'test_session_id': test_session_id,
+                            'latest_created_at': result.created_at,
+                            'latest_result': result
+                        }
+                    else:
+                        # Compare by created_at to keep the most recent
+                        if result.created_at > unique_sessions[test_session_id]['latest_created_at']:
+                            unique_sessions[test_session_id]['latest_created_at'] = result.created_at
+                            unique_sessions[test_session_id]['latest_result'] = result
+                
+                # Convert to list and sort by latest_created_at descending, then apply limit to get top N sessions
+                unique_results = list(unique_sessions.values())
+                unique_results.sort(key=lambda x: x['latest_created_at'], reverse=True)
+                unique_results = unique_results[:limit]  # Get top N (e.g., 3) most recent test sessions
+                
+                # Extract test_session_ids from the limited results
+                test_session_ids = [r['test_session_id'] for r in unique_results]
+                
+                # Now get ALL results for these test_session_ids (not just one per session)
+                # This ensures we get all units/results for each of the top N test sessions
+                all_results = QuizResult.objects.filter(
+                    user_id=user_id,
+                    status='completed',
+                    test_session_id__in=test_session_ids
+                )
+                if section_id:
+                    all_results = all_results.filter(section_id=section_id)
+                all_results = all_results.order_by('-created_at')
+                
+                # Convert to summary format - include ALL results for each test_session_id
+                summaries = []
+                for result in all_results:
                     quiz_data = result.quiz_data or {}
                     summaries.append({
                         'test_session_id': result.test_session_id,
                         'user_id': result.user_id,
                         'section_id': result.section_id,
+                        'unit_id': str(result.unit_id),  # Include unit_id for grouping
                         'total_questions': quiz_data.get('totalQuestions', 0),
                         'answered_questions': quiz_data.get('answeredCount', 0),
                         'correct_answers': quiz_data.get('correctCount', 0),
                         'incorrect_answers': quiz_data.get('answeredCount', 0) - quiz_data.get('correctCount', 0),
                         'percentage': round(quiz_data.get('score', 0) * 100) if quiz_data.get('score') else 0,
                         'completed_at': result.created_at.isoformat(),
+                        'created_at': result.created_at.isoformat(),
+                        'updated_at': result.updated_at.isoformat(),
+                        'status': result.status,
                         'questions': []  # TODO: Add detailed question data if needed
                     })
                 
-                logger.info(f"Found {len(summaries)} test results for user {user_id}")
+                logger.info(f"Found {len(summaries)} test result records for {len(test_session_ids)} unique test sessions (showing top {limit} sessions) for user {user_id}")
                 
                 return JsonResponse({
                     'success': True,
