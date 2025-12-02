@@ -13,4 +13,7 @@ urlpatterns = [
     path('course/<str:course_key>/access/', views.check_course_access, name='check_course_access'),
     path('auto-enroll-all/', views.auto_enroll_all_courses, name='auto_enroll_all_courses'),
     path('test-auto-enroll-hh/', views.test_auto_enroll_hh, name='test_auto_enroll_hh'),
+    path('user/access-info/', views.get_user_access_info_api, name='get_user_access_info'),
+    path('toggle-subscription/', views.toggle_subscription_status, name='toggle_subscription_status'),
+    path('activate-section-access/', views.activate_section_access, name='activate_section_access'),
 ] 
