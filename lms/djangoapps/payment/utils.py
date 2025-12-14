@@ -230,9 +230,8 @@ def get_user_subscription_info(user):
                 'total_packages': len(active_transactions),  # Number of active packages
             }
             
-            # Only include packages list if there are multiple packages
-            if len(active_transactions) > 1:
-                result['packages'] = package_details  # List of all active packages
+            # Always include packages list (even for single package)
+            result['packages'] = package_details  # List of all active packages
             
             return result
             

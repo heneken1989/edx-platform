@@ -76,7 +76,7 @@ def get_vnpay_url():
     """Get VNPay URL based on environment setting"""
     if VNPAY_CONFIG['USE_SANDBOX']:
         return VNPAY_CONFIG['SANDBOX_URL']
-    return VNPAY_CONFIG['PRODUCTION_URL']
+    return VNPAY_CONFIG['PRODUCTION_URL'] 
 
 # PayOS Configuration
 PAYOS_CONFIG = {

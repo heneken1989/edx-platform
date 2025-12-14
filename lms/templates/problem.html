@@ -376,6 +376,27 @@ from openedx.core.djangolib.markup import HTML, Text
     // Handler for iframe requests for block ID
     // Listen for quiz data from quiz iframe
     window.addEventListener('message', function(event) {
+        // Only forward messages from iframes (not from parent)
+        // Skip messages from parent window
+        if (event.source === window.parent) {
+            return;
+        }
+        
+        // Forward quiz.meta messages from iframe to parent
+        if (event.data && event.data.type === 'quiz.meta') {
+            console.log('🔍 DEBUG - problem.html received quiz.meta from iframe:', event.data);
+            console.log('🔍 DEBUG - Template ID:', event.data.templateId);
+            
+            // Forward quiz metadata to parent page (PersistentNavigationBar)
+            parent.postMessage({
+                type: 'quiz.meta',
+                templateId: event.data.templateId,
+                hasAudio: event.data.hasAudio
+            }, '*');
+            
+            return;
+        }
+        
         if (event.data && event.data.type === 'quiz.data.ready') {
             console.log('🔍 DEBUG - problem.html received quiz data:', event.data.quizData);
             console.log('🔍 DEBUG - template config:', event.data.templateConfig);
