@@ -428,6 +428,15 @@ from openedx.core.djangolib.markup import HTML, Text
             return;
         }
         
+        // Forward timer.start messages from iframe to parent (for timer start)
+        if (event.data && event.data.type === 'timer.start') {
+            console.log('▶️ problem.html received timer.start from iframe:', event.data);
+            console.log('▶️ Forwarding timer.start to parent:', event.data);
+            parent.postMessage(event.data, '*');
+            console.log('▶️ timer.start forwarded to parent successfully');
+            return;
+        }
+        
         if (event.data && event.data.type === 'getBlockId') {
             // Try to get actual block ID from current context
             let blockId = null;
