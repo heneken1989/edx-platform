@@ -3390,6 +3390,9 @@ INSTALLED_APPS = [
     "openedx_learning.apps.authoring.components",
     "openedx_learning.apps.authoring.contents",
     "openedx_learning.apps.authoring.publishing",
+    "openedx_learning.apps.authoring.sections",
+    "openedx_learning.apps.authoring.subsections",
+    "openedx_learning.apps.authoring.units",
 
     # Payment app
     'lms.djangoapps.payment',
