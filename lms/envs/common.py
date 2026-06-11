@@ -3390,13 +3390,31 @@ INSTALLED_APPS = [
     "openedx_learning.apps.authoring.components",
     "openedx_learning.apps.authoring.contents",
     "openedx_learning.apps.authoring.publishing",
-    "openedx_learning.apps.authoring.sections",
-    "openedx_learning.apps.authoring.subsections",
-    "openedx_learning.apps.authoring.units",
 
     # Payment app
     'lms.djangoapps.payment',
 ]
+
+# Newer openedx-learning releases ship sections/subsections/units apps (Tutor 20+).
+# Skip silently on older dev images to avoid ModuleNotFoundError at startup.
+_OPENEDX_LEARNING_OPTIONAL_AUTHORING_APPS = []
+for _app_label in (
+    "openedx_learning.apps.authoring.sections",
+    "openedx_learning.apps.authoring.subsections",
+    "openedx_learning.apps.authoring.units",
+):
+    try:
+        __import__(_app_label)
+    except ImportError:
+        continue
+    _OPENEDX_LEARNING_OPTIONAL_AUTHORING_APPS.append(_app_label)
+if _OPENEDX_LEARNING_OPTIONAL_AUTHORING_APPS:
+    _payment_app_index = INSTALLED_APPS.index('lms.djangoapps.payment')
+    INSTALLED_APPS = (
+        INSTALLED_APPS[:_payment_app_index]
+        + _OPENEDX_LEARNING_OPTIONAL_AUTHORING_APPS
+        + INSTALLED_APPS[_payment_app_index:]
+    )
 
 
 ######################### CSRF #########################################

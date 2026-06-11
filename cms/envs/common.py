@@ -1874,10 +1874,18 @@ INSTALLED_APPS = [
     "openedx_learning.apps.authoring.components",
     "openedx_learning.apps.authoring.contents",
     "openedx_learning.apps.authoring.publishing",
+]
+
+for _app_label in (
     "openedx_learning.apps.authoring.sections",
     "openedx_learning.apps.authoring.subsections",
     "openedx_learning.apps.authoring.units",
-]
+):
+    try:
+        __import__(_app_label)
+    except ImportError:
+        continue
+    INSTALLED_APPS.append(_app_label)
 
 
 ################# EDX MARKETING SITE ##################################
