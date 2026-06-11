@@ -48,6 +48,10 @@ from xmodule.exceptions import NotFoundError, ProcessingError
 from xmodule.library_tools import LegacyLibraryToolsService
 from xmodule.modulestore.django import XBlockI18nService, modulestore
 from xmodule.modulestore.exceptions import ItemNotFoundError
+
+# XBlock handlers that only update the block's own user_state and do not need
+# descendant blocks loaded from modulestore (e.g. goto_position on a 500+ unit sequence).
+HANDLERS_WITHOUT_DESCENDANTS = frozenset({'goto_position'})
 from xmodule.partitions.partitions_service import PartitionService
 from xmodule.util.sandboxing import SandboxService
 from xmodule.services import EventPublishingService, RebindUserService, SettingsService, TeamsConfigurationService
@@ -798,7 +802,8 @@ def handle_xblock_callback(request, course_id, usage_id, handler, suffix=None):
 
     with modulestore().bulk_operations(course_key):
         try:
-            course = modulestore().get_course(course_key)
+            course_depth = 0 if handler in HANDLERS_WITHOUT_DESCENDANTS else None
+            course = modulestore().get_course(course_key, depth=course_depth)
         except ItemNotFoundError:
             raise Http404(f'{course_id} does not exist in the modulestore')  # lint-amnesty, pylint: disable=raise-missing-from
 
@@ -815,14 +820,14 @@ def _get_usage_key_for_course(course_key, usage_id) -> UsageKey:
         raise Http404("Invalid location") from exc
 
 
-def _get_block_by_usage_key(usage_key):
+def _get_block_by_usage_key(usage_key, depth=None):
     """
     Gets a block instance based on a mapped-to-course usage_key
 
     Returns (instance, tracking_context)
     """
     try:
-        block = modulestore().get_item(usage_key)
+        block = modulestore().get_item(usage_key, depth=depth)
         block_orig_usage_key, block_orig_version = modulestore().get_block_original_usage(usage_key)
     except ItemNotFoundError as exc:
         log.warning(
@@ -849,7 +854,7 @@ def _get_block_by_usage_key(usage_key):
 
 
 def get_block_by_usage_id(request, course_id, usage_id, disable_staff_debug_info=False, course=None,
-                          will_recheck_access=False):
+                          will_recheck_access=False, modulestore_depth=None):
     """
     Gets a block instance based on its `usage_id` in a course, for a given request/user
 
@@ -857,13 +862,15 @@ def get_block_by_usage_id(request, course_id, usage_id, disable_staff_debug_info
     """
     course_key = CourseKey.from_string(course_id)
     usage_key = _get_usage_key_for_course(course_key, usage_id)
-    block, tracking_context = _get_block_by_usage_key(usage_key)
+    block, tracking_context = _get_block_by_usage_key(usage_key, depth=modulestore_depth)
 
     _, user = setup_masquerade(request, course_key, has_access(request.user, 'staff', block, course_key))
+    field_data_cache_depth = 0 if modulestore_depth == 0 else None
     field_data_cache = FieldDataCache.cache_for_block_descendents(
         course_key,
         user,
         block,
+        depth=field_data_cache_depth,
         read_only=CrawlersConfig.is_crawler(request),
     )
     instance = get_block_for_descriptor(
@@ -925,12 +932,17 @@ def _invoke_xblock_handler(request, course_id, usage_id, handler, suffix, course
         # At the time of writing, this is only used by one handler. If this usage grows, we may want to re-evaluate
         # how we do this to something more elegant. If you are the author of a third party block that decides it wants
         # to set this too, please let us know so we can consider making this easier / better-documented.
-        block, _ = _get_block_by_usage_key(block_usage_key)
-        handler_method = getattr(block, handler, False)
-        will_recheck_access = handler_method and getattr(handler_method, 'will_recheck_access', False)
+        handler_needs_descendants = handler not in HANDLERS_WITHOUT_DESCENDANTS
+        will_recheck_access = False
+        modulestore_depth = 0 if not handler_needs_descendants else None
+        if handler_needs_descendants:
+            block, _ = _get_block_by_usage_key(block_usage_key)
+            handler_method = getattr(block, handler, False)
+            will_recheck_access = handler_method and getattr(handler_method, 'will_recheck_access', False)
 
         instance, tracking_context = get_block_by_usage_id(
             request, course_id, str(block_usage_key), course=course, will_recheck_access=will_recheck_access,
+            modulestore_depth=modulestore_depth,
         )
 
         # Name the transaction so that we can view XBlock handlers separately in

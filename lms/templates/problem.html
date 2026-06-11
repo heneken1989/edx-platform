@@ -73,6 +73,24 @@ from openedx.core.djangolib.markup import HTML, Text
                     console.log('🔄 Error forwarding quiz.save_results to iframe ' + index + ':', e.message);
                 }
             });
+        } else if (event.data.type === 'quiz.restore_answers') {
+            console.log('🔄 problem.html received quiz.restore_answers, forwarding to ALL iframes');
+            
+            // Forward to ALL iframes
+            const allIframes = document.querySelectorAll('iframe');
+            console.log('🔄 Found iframes:', allIframes.length);
+            
+            allIframes.forEach((iframe, index) => {
+                try {
+                    console.log('🔄 Forwarding quiz.restore_answers to iframe ' + index + ':', iframe.src);
+                    iframe.contentWindow.postMessage({
+                        type: 'quiz.restore_answers',
+                        answers: event.data.answers
+                    }, '*');
+                } catch (e) {
+                    console.log('🔄 Error forwarding quiz.restore_answers to iframe ' + index + ':', e.message);
+                }
+            });
             
             const submitButton = document.querySelector('.submit');
             if (!submitButton) {

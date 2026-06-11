@@ -3,7 +3,7 @@ URL patterns for completion API
 """
 from django.urls import path
 from . import completion_api, quiz_completion_api
-from .views.quiz_results import save_quiz_results, get_test_summary
+from .views.quiz_results import save_quiz_results, get_test_summary, get_quiz_results
 
 urlpatterns = [
     # Official EdX BlockCompletion API
@@ -29,4 +29,5 @@ urlpatterns = [
     # Quiz results API
     path('save_quiz_results/', save_quiz_results, name='save_quiz_results'),
     path('get_test_summary/', get_test_summary, name='get_test_summary'),
+    path('get_quiz_results/', get_quiz_results, name='get_quiz_results'),
 ]

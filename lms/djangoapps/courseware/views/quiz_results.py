@@ -115,6 +115,74 @@ def save_quiz_results(request):
 
 @csrf_exempt
 @require_http_methods(["GET"])
+def get_quiz_results(request):
+    """
+    Get quiz results for a user, section, and test session
+    Returns all quiz results (both processing and completed) for tracking answered questions
+    """
+    try:
+        user_id = request.GET.get('user_id')
+        section_id = request.GET.get('section_id')
+        test_session_id = request.GET.get('test_session_id')
+        
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'user_id is required'
+            }, status=400)
+        
+        try:
+            # Query QuizResult model - get ALL results (both processing and completed)
+            results = QuizResult.objects.filter(user_id=user_id)
+            
+            if section_id:
+                results = results.filter(section_id=section_id)
+            
+            if test_session_id:
+                results = results.filter(test_session_id=test_session_id)
+            
+            results = results.order_by('-created_at')
+            
+            # Convert to response format
+            quiz_results = []
+            for result in results:
+                quiz_data = result.quiz_data or {}
+                quiz_results.append({
+                    'unit_id': str(result.unit_id),
+                    'section_id': result.section_id,
+                    'template_id': result.template_id,
+                    'test_session_id': result.test_session_id,
+                    'status': result.status,
+                    'quiz_data': quiz_data,  # Include full quiz_data with answers array
+                    'score': result.score,
+                    'is_correct': result.is_correct,
+                    'created_at': result.created_at.isoformat(),
+                    'updated_at': result.updated_at.isoformat()
+                })
+            
+            logger.info(f"Found {len(quiz_results)} quiz results for user {user_id}, section_id: {section_id}, test_session_id: {test_session_id}")
+            
+            return JsonResponse({
+                'success': True,
+                'results': quiz_results
+            })
+            
+        except Exception as e:
+            logger.error(f"Error querying quiz results: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'error': f'Database error: {str(e)}'
+            }, status=500)
+        
+    except Exception as e:
+        logger.error(f"Error getting quiz results: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
 def get_test_summary(request):
     """
     Get test summary for a user and test session
