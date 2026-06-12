@@ -365,15 +365,21 @@ def course_search_index_handler(request, course_key_string):
 def _course_outline_json(request, course_block):
     """
     Returns a JSON representation of the course block and recursively all of its children.
+
+    format=fast (default): outline tree without per-block has_changes (large courses).
+    format=full: legacy slow path with draft/publish metadata on every block.
+    format=concise: legacy concise payload (avoid on large courses; loads problem children).
     """
-    is_concise = request.GET.get('format') == 'concise'
+    outline_format = request.GET.get('format', 'fast')
+    is_full = outline_format == 'full'
+    is_concise = outline_format == 'concise'
     include_children_predicate = lambda xblock: not xblock.category == 'vertical'
     if is_concise:
         include_children_predicate = lambda xblock: xblock.has_children
     return create_xblock_info(
         course_block,
         include_child_info=True,
-        course_outline=False if is_concise else True,  # lint-amnesty, pylint: disable=simplifiable-if-expression
+        course_outline=is_full,
         include_children_predicate=include_children_predicate,
         is_concise=is_concise,
         user=request.user
